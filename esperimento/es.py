@@ -4,14 +4,16 @@ PROGETTO 16 - Gestione intelligente di un sistema energetico industriale
 
 Cosa fa questo script
 ----------------------
-Simula, ora per ora, come gestire al meglio un impianto che ha:
-- pannelli solari e pale eoliche (energia rinnovabile),
-- una batteria,
-- un sistema a idrogeno (per produrre e poi riusare energia),
-- un collegamento alla rete elettrica (si puo' comprare o vendere energia).
-
-L'impianto deve anche coprire un carico (i consumi dell'edificio) e i
-prezzi dell'energia cambiano nel tempo.
+E' una variante dello script principale del progetto, che si trova nella
+cartella superiore. La logica e' identica: stessi dati, stesse funzioni,
+stesso modello di ottimizzazione. Cambia solo un numero: il costo che si
+assegna allo spreco di energia rinnovabile (chiamato curtailment). Nello
+script principale questo costo e' alto (1000 EUR per ogni MWh sprecato),
+qui invece e' quasi zero (0.01 EUR/MWh). Con un costo cosi' basso, il
+modello non ha piu' un vero motivo per evitare di sprecare energia, e lo
+fa molto piu' spesso rispetto allo script principale. Questo file serve a
+confrontare come si comporta il sistema con e senza questo freno
+economico.
 
 Come funziona
 --------------
@@ -37,13 +39,11 @@ indicata da --data-dir:
 - res_1_year_pu.mat  -> quanta energia rinnovabile si produce (P_pv, P_w)
 - buildings_load.mat -> quanta energia consuma l'edificio (Pul)
 - PUN_2022.mat       -> prezzo di vendita dell'energia ogni ora (pun)
-Ogni file contiene sia la previsione che il valore vero misurato per
-ciascuna ora, tranne il prezzo di vendita che e' un unico dato di mercato.
 
 Come si esegue
 ----------------
-    python project16.py --hours 168 --solver auto
-    python project16.py --check-data          # controlla solo i dati
+    python esperimento/es.py --hours 168 --solver auto
+    python esperimento/es.py --check-data          # controlla solo i dati
 Alla fine viene salvato un file CSV con tutte le decisioni ora per ora e
 un grafico riassuntivo, nella cartella --output-dir.
 """
@@ -94,7 +94,7 @@ DEFAULT_OUTPUT_DIR = SCRIPT_DIR / "output_project16"
 @dataclass(frozen=True)
 class ProjectParameters:
     """Tutti i numeri fissi del progetto: potenze, limiti, rendimenti,
-    prezzi. Non cambiano durante la simulazione
+    prezzi. Sono le regole del gioco: non cambiano durante la simulazione
     e vengono usate per costruire i vincoli e i costi del modello.
     """
 
@@ -136,13 +136,18 @@ class ProjectParameters:
     price_f3_eur_mwh: float = 0.46868 * 1000.0
 
     # Quanto "costa" sprecare energia rinnovabile (curtailment) [EUR/MWh].
-    # Non e' un prezzo vero, e' solo un modo per dire al modello "evita di
-    # sprecare energia se puoi". Il valore e' molto piu' alto dei prezzi
-    # normali (1000 contro circa 500), cosi' il modello preferisce sempre
-    # caricare la batteria, fare idrogeno o vendere in rete piuttosto che
-    # buttare via l'energia. Il curtailment resta l'ultima opzione, usata
-    # solo quando davvero non c'e' altro posto dove mettere l'energia.
-    curtailment_penalty_eur_mwh: float = 1000.0
+    # Non e' un prezzo vero, e' solo un modo per dire al modello quanto
+    # gli conviene evitare lo spreco.
+    #
+    # QUESTA E' LA DIFFERENZA DI QUESTO FILE: nello script principale
+    # (project16.py) questo valore e' 1000.0, molto piu' alto dei prezzi
+    # normali, cosi' il modello preferisce sempre caricare la batteria,
+    # fare idrogeno o vendere in rete piuttosto che sprecare energia. Qui
+    # invece vale 0.01, praticamente zero: sprecare energia diventa quasi
+    # gratis, quindi il modello lo fa molto piu' spesso. E' l'unico numero
+    # diverso tra i due file, ed e' il motivo per cui questo script esiste
+    # come esperimento a parte.
+    curtailment_penalty_eur_mwh: float = 0.01
 
 
 @dataclass(frozen=True)
@@ -195,6 +200,10 @@ def _load_required_variable(file_path: Path, variable_name: str) -> np.ndarray:
 
     Returns:
         I dati richiesti, convertiti in un array NumPy di numeri decimali.
+        La forma dell'array (quante righe e quante colonne) cambia da
+        variabile a variabile: alcune sono semplici serie con una colonna
+        per ogni ora, altre hanno piu' colonne affiancate (ad esempio
+        previsione e valore reale nella stessa tabella).
 
     Raises:
         FileNotFoundError: il file indicato non esiste nella cartella dati.
@@ -223,16 +232,20 @@ def build_purchase_price_profile(
 ) -> np.ndarray:
     """
     Calcola quanto costa comprare energia dalla rete, ora per ora.
-    F1 (ore di punta, la piu' cara), 
-    F2 (fascia intermedia) e 
-    F3 (notte/festivi, la piu' economica).
-    Qui si usa lo stesso giorno tipo per tutto l'anno:
+
+    In Italia le tariffe elettriche si dividono in tre fasce: F1 (ore di
+    punta, la piu' cara), F2 (fascia intermedia) e F3 (notte/festivi, la
+    piu' economica). Qui si usa lo stesso giorno tipo per tutto l'anno:
 
     - ore 00-05: F3 (6 ore)
-    - ore 06-07: F2 (1 ora)
+    - ora 06:    F2 (1 ora)
     - ore 07-17: F1 (11 ore)
     - ore 18-21: F2 (4 ore)
     - ore 22-23: F3 (2 ore)
+
+    Il prezzo di acquisto quindi non arriva da nessun file: e' sempre
+    calcolato con questa regola fissa (a differenza del prezzo di vendita,
+    che invece cambia ogni ora secondo il mercato reale).
 
     Args:
         number_of_hours: quante ore servono in totale (di solito la
@@ -437,6 +450,10 @@ def make_forecast_window(
     """
     Prepara i dati delle prossime ore da dare in pasto al modello.
 
+    Per l'ora corrente si usa il valore vero (lo si conosce gia'). Per le
+    ore successive si usa la previsione, perche' quelle ore non sono
+    ancora successe.
+
     Args:
         forecast: tutta la serie di previsione disponibile per l'intero
             anno, per una singola grandezza (fotovoltaico, eolico oppure
@@ -479,9 +496,14 @@ def solve_mpc_step(
     Qui viene costruito il modello matematico vero e proprio: le
     variabili (quanto importare, esportare, caricare la batteria, ecc.),
     i vincoli (le regole che non si possono violare, tipo i limiti di
-    potenza) e l'obiettivo (minimizzare il costo). Il modello viene
-    risolto una volta sola per tutta la finestra di ore, ma 
-    viene usata solo la prima decisione
+    potenza) e l'obiettivo (minimizzare il costo). In questo file la
+    penalita' sul curtailment e' quasi nulla, quindi pesa pochissimo
+    nell'obiettivo e il modello e' libero di sprecare energia rinnovabile
+    invece di sforzarsi di immagazzinarla o venderla. Il modello viene
+    risolto una volta sola per tutta la finestra di ore, ma - come
+    spiegato in cima al file - viene usata solo la prima decisione: il
+    resto del piano viene buttato via e ricalcolato al passo successivo.
+
     Args:
         soc_initial: quanto e' carica la batteria all'inizio (0-1).
         soh_initial: quanto idrogeno c'e' accumulato all'inizio (0-1).
@@ -554,9 +576,9 @@ def solve_mpc_step(
     def objective_rule(current_model: Any) -> Any:
         # Il costo totale e' quanto si spende per comprare, meno quanto
         # si guadagna vendendo, piu' una penalita' per ogni MW sprecato
-        # (curtailment). Questa penalita' non e' un costo vero, serve
-        # solo a convincere il modello a non sprecare energia se puo'
-        # evitarlo.
+        # (curtailment). In questo file la penalita' e' quasi zero (0.01
+        # EUR/MWh), quindi conta pochissimo nel calcolo e il modello non
+        # e' spinto a evitare lo spreco.
         return sum(
             parameters.delta_t_h
             * (
@@ -674,7 +696,7 @@ def solve_mpc_step(
     # 4. Accumulo a idrogeno
     # ------------------------------------------------------------------
     def hydrogen_state_rule(current_model: Any, j: int) -> Any:
-        # Stessa idea della batteria  ma per l'idrogeno:
+        # Stessa idea della batteria qui sopra, ma per l'idrogeno:
         # produrne (con l'elettrolizzatore) lo riempie, consumarne (con
         # la fuel cell) lo svuota, entrambi con le loro perdite.
         previous_soh = soh_initial if j == 0 else current_model.SoH[j - 1]
@@ -698,7 +720,7 @@ def solve_mpc_step(
         )
 
     def electrolyzer_max_rule(current_model: Any, j: int) -> Any:
-        # Insieme al vincolo sopra: l'elettrolizzatore spento (0) o
+        # Insieme al vincolo sopra: l'elettrolizzatore o e' spento (0) o
         # lavora tra il minimo e il massimo, mai a un livello troppo basso.
         return (
             current_model.P_electrolyzer[j]
@@ -746,7 +768,7 @@ def solve_mpc_step(
             f"Condizione di terminazione: {termination}"
         )
 
-    # Si prende solo la decisione della
+    # Come spiegato in cima al file: si prende solo la decisione della
     # prima ora (indice 0). Il resto del piano viene scartato e si
     # ricalcola tutto da capo al passo successivo.
     return {

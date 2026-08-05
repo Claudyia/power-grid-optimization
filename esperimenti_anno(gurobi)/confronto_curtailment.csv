@@ -1,0 +1,5 @@
+esperimento,ore,curtailment_MWh,ore_con_curtailment,costo_finale_EUR
+A_baseline (0.50/0.50),6529,0.000,0,9676141.49
+B_vuoto (0.10/0.00),6529,0.000,0,9679994.95
+C_pieno (0.90/1.00),6529,0.000,0,9672472.78
+"D_penalita_bassa (0.90/1.00, lambda=0.01)",6529,0.000,0,9672581.21
