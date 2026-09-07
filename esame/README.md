@@ -181,6 +181,78 @@ Risultati completi in `risultati/confronto_annuale_gurobi.csv` e
   (rinnovabili/carico, scambi controllati, livello accumuli, costo
   cumulativo) come immagini separate.
 
+## I grafici
+
+`project16.py` produce per ogni run `project16_plots.png`: una figura a
+quattro pannelli con asse x = ora della simulazione. In
+`risultati/grafici_spiegati/` gli stessi quattro pannelli sono salvati come
+immagini singole — i primi tre "zoomati" sulla prima settimana per
+leggibilità, il quarto sull'intero anno.
+
+### 1. Produzione rinnovabile e carico
+
+![Produzione rinnovabile e carico](risultati/grafici_spiegati/01_rinnovabili_e_carico.png)
+
+| Linea | Significato |
+|---|---|
+| **Nera – Carico** | `P_ul`, domanda non controllabile, sempre da soddisfare (obiettivo b). ~2–12 MW con ciclo giorno/notte. |
+| **Verde – Rinnovabili** | `P_pv + P_w` disponibile (PV 4 MW + eolico 8 MW). Molto variabile, spesso sotto il carico. |
+| **Arancione – Curtailment** | rinnovabile **sprecata** `P_c`. Resta incollata a zero. |
+
+Quando la verde sta sotto la nera manca energia → import o scarica degli
+accumuli; quando la supererebbe, l'eccesso va in batteria/idrogeno/export,
+non in curtailment.
+
+### 2. Scambi controllati (decisioni del sistema)
+
+![Decisioni del sistema](risultati/grafici_spiegati/02_decisioni_del_sistema.png)
+
+Le decisioni del controllore MPC; la linea a 0 è il riferimento e ogni curva
+ha segno:
+
+| Linea | Sopra 0 (+) | Sotto 0 (−) |
+|---|---|---|
+| **Blu – Rete** | importazione (≤ 12 MW) | esportazione (≤ 10 MW) |
+| **Verde – Batteria** | scarica | carica |
+| **Rossa – Idrogeno** | fuel cell (H₂ → energia) | elettrolizzatore (energia → H₂) |
+
+La somma dei contributi più le rinnovabili chiude il bilancio di potenza
+esatto ogni ora. In pratica **domina il blu positivo**: l'impianto vive di
+import, le rinnovabili non bastano quasi mai. Batteria e idrogeno danno
+contributi piccoli e sporadici, per sfruttare i prezzi orari.
+
+### 3. Livello degli accumuli
+
+![Livello degli accumuli](risultati/grafici_spiegati/03_livello_accumuli.png)
+
+| Linea | Significato |
+|---|---|
+| **Blu – SoC batteria** | stato di carica della batteria (1 MWh). |
+| **Arancione – SoH idrogeno** | livello del serbatoio H₂ (20 MWh). |
+| **Tratteggi** | limiti **10 % / 90 %** della batteria (obiettivo c). |
+
+La SoC **rimbalza di continuo tra 10 % e 90 %**: la batteria è piccola, viene
+usata come cuscinetto ai limiti e non esce mai dalla fascia ammessa → vincolo
+sempre rispettato. La SoH parte da 50 %, si consuma nei primi giorni e resta
+**a zero**: con rendimenti 0.73 / 0.65 e potenza minima 1 MW l'idrogeno non
+conviene mai e resta fermo. È anche il motivo per cui gli stati iniziali
+contano poco: dopo poche ore il sistema li "dimentica".
+
+### 4. Costo netto cumulativo di mercato
+
+![Costo cumulativo](risultati/grafici_spiegati/04_costo_cumulativo.png)
+
+Somma progressiva di (costo import − ricavo export). Settimana: ~353 000 €;
+anno intero: **~9,68 M€**, curva quasi lineare con lieve accelerazione a fine
+periodo (inverno → carico e prezzi più alti). Sempre crescente → l'impianto è
+nel complesso un **compratore netto** di energia.
+
+### La figura completa
+
+![Grafico riassuntivo annuale](risultati/anno_baseline_gurobi/project16_plots.png)
+
+I quattro pannelli insieme, scenario A sull'intero anno (solver Gurobi).
+
 ## Requisiti
 
 - Python ≥ 3.10
