@@ -1,8 +1,6 @@
 # Power Grid Optimization — Project 16
 
-Corso **Innovazione e trasformazione digitale** (A.A. 2025-26), Modulo 2:
-*Digitalizzazione e ottimizzazione nel settore dell'energia elettrica*
-(Prof. Francesco Conte, UCBM).
+Corso **Innovazione e trasformazione digitale** (A.A. 2025-26)
 
 Implementazione del **Project 16** della consegna: controllo **MPC**
 (Model Predictive Control) di un sistema energetico industriale con
