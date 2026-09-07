@@ -253,6 +253,84 @@ nel complesso un **compratore netto** di energia.
 
 I quattro pannelli insieme, scenario A sull'intero anno (solver Gurobi).
 
+## Come si comportano i componenti
+
+Numeri ricavati da `risultati/anno_baseline_gurobi/project16_results.csv`
+(scenario A, Gurobi, 6529 ore). Servono a capire **quale ruolo gioca
+davvero ogni componente**, che dai soli grafici si intuisce ma non si
+quantifica.
+
+### Rete — la fonte principale
+
+| Indicatore | Valore |
+|---|---|
+| Ore con import > 0 | 5828 / 6529 (**89 %**) |
+| Energia importata nell'anno | ~19 300 MWh |
+| Ore con export > 0 | 362 (5,5 %) |
+| Energia esportata | ~495 MWh |
+| Import netto annuo | ~18 800 MWh, su un carico totale di ~28 600 MWh |
+| Import medio quando attivo / picco | 3,3 MW / 11,5 MW (limite 12) |
+
+La rinnovabile copre **~35 %** del fabbisogno annuo (lordo); il resto lo
+compra la rete. L'export è un evento raro, usato solo quando il prezzo di
+vendita (PUN) schizza in alto. **L'impianto è un forte compratore netto di
+energia.**
+
+### Batteria — cuscinetto veloce, non serbatoio
+
+| Indicatore | Valore |
+|---|---|
+| Ore attiva (carica o scarica) | ~1000 / 6529 (**15 %**) |
+| Energia movimentata nell'anno | ~300 MWh caricati, ~275 scaricati (rendimento ciclo ~90 %) |
+| SoC medio | 0,58 — ma passa **3523 ore al 90 %** e **2256 ore al 10 %** |
+| Ore con SoC strettamente tra i limiti | 750 (11 %) |
+
+Con **1 MWh** di capacità contro flussi orari da diversi MW, la batteria
+non può spostare quantità di energia significative da un'ora all'altra.
+Sta quasi sempre **appoggiata a un limite** e fa brevi cicli 10 %↔90 % per
+chiudere il bilancio istante per istante: è un cuscinetto di reattività,
+non un accumulo strategico.
+
+### Sistema a idrogeno — quasi sempre fermo
+
+| Indicatore | Valore |
+|---|---|
+| Ore con elettrolizzatore acceso | 134 / 6529 (2 %) |
+| Ore con fuel cell accesa | 77 (1 %) |
+| Energia in / out nell'anno | ~243 MWh → ~122 MWh (rendimento ciclo **~50 %**) |
+| SoH medio | 0,07 — **a zero per il 64 % dell'anno** |
+| Prima ora in cui SoH ≈ 0 | ora 210 (≈ 9° giorno) |
+
+Il serbatoio parte al 50 %, si svuota nei primi giorni e poi resta vuoto.
+Il rendimento di ciclo del **50 %** (η_ely 0,73 × η_fc 0,65) e la potenza
+minima di 1 MW lo rendono conveniente solo in rari picchi di prezzo: per il
+resto dell'anno l'idrogeno **non viene usato**.
+
+### Rinnovabili e curtailment
+
+Nell'anno vengono prodotti e usati ~9 960 MWh di rinnovabile e **0 MWh
+sprecati** (curtailment nullo in ogni ora). Ogni surplus trova posto in
+batteria, elettrolizzatore o export prima di dover essere buttato.
+
+### Perché questo comportamento — i prezzi
+
+| Prezzo | Intervallo nel dataset |
+|---|---|
+| Acquisto (`c_l`, 3 fasce) | 469–549 €/MWh — banda stretta |
+| Vendita (`p_e`, PUN) | 10–870 €/MWh — molto volatile |
+
+Far transitare energia da batteria o idrogeno conviene solo se il
+differenziale di prezzo supera le perdite di ciclo (~10 % batteria, ~50 %
+idrogeno). Capita di rado, ed è il motivo per cui entrambi gli accumuli
+restano poco usati: la strategia ottima è **comprare dalla rete al momento
+giusto**, non accumulare.
+
+### Errore di bilancio
+
+`power_balance_error_MW` resta sotto **1e-13 MW** in ogni ora: il vincolo
+di bilancio di potenza è soddisfatto esattamente, a meno della precisione
+numerica del solver.
+
 ## Requisiti
 
 - Python ≥ 3.10
