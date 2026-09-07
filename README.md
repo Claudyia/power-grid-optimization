@@ -111,8 +111,11 @@ Data for projects-20260727/      Dataset di input (.mat) forniti dal corso
 docs gen/                        Slide del corso ed esercizi Pyomo di riferimento
 output_project16/                Output di una prima esecuzione (CSV + grafico)
 output_project16_2/              Output di esecuzioni successive
-  ├── full/                      Simulazione sull'intero anno + grafici commentati
+  ├── full/                      Simulazione sull'intero anno
+  │   └── grafici_spiegati/      I 4 pannelli come immagini singole (vedi "I grafici")
   └── week/                      Simulazione su una settimana (168 ore)
+esperimenti_anno_highs/          Anno intero, 4 scenari, solver HiGHS
+esperimenti_anno(gurobi)/        Anno intero, 4 scenari, solver Gurobi
 ```
 
 ## Modello implementato (`project16.py`)
@@ -168,12 +171,115 @@ Per ogni esecuzione vengono generati in `--output-dir`:
 
 - `project16_results.csv`: decisione e stato per ogni ora simulata (potenze
   scambiate, SoC/SoH, costi orari e cumulativi, errore di bilancio)
-- `project16_plots.png`: rinnovabili/carico, scambi controllati (rete,
-  batteria, idrogeno), livello degli accumuli, costo cumulativo
+- `project16_plots.png`: un'unica figura con i quattro pannelli descritti sotto
+  (funzione `create_plots` in `project16.py`)
 
-`output_project16_2/full/grafici_spiegati/` contiene le stesse quattro viste
-separate in immagini singole con nomi descrittivi, generate a partire dalla
-simulazione sull'intero anno.
+## I grafici
+
+Ogni esecuzione produce la stessa figura a **quattro pannelli in colonna**, con
+asse x = **ora della simulazione** (0–168 per la settimana, 0–6529 per l'anno).
+La cartella `grafici/` contiene gli stessi
+quattro pannelli come immagini separate, con i primi tre "zoomati" sulla prima
+settimana per leggibilità e il quarto sull'intero anno.
+
+### 1. Produzione rinnovabile e carico
+
+![Produzione rinnovabile e carico](grafici/01_rinnovabili_e_carico.png)
+
+Potenza in MW, tre linee:
+
+| Linea | Significato |
+|---|---|
+| **Nera – Carico** | `P_ul`, la domanda dell'edificio, non controllabile: va sempre soddisfatta (obiettivo b). Oscilla tra ~2 e ~12 MW con ciclo giorno/notte. |
+| **Verde – Rinnovabili** | `P_pv + P_w` effettivamente usata (PV 4 MW + eolico 8 MW). Molto variabile, spesso sotto il carico. |
+| **Arancione – Curtailment** | Energia rinnovabile **sprecata** `P_c`. Resta incollata a zero: il sistema non butta mai via rinnovabile. |
+
+Quando la verde sta sotto la nera manca energia → serve import o scarica degli
+accumuli. Quando la verde supererebbe la nera, l'eccesso va in
+batteria/idrogeno/export invece che in curtailment.
+
+### 2. Scambi controllati (decisioni del sistema)
+
+![Decisioni del sistema](grafici/02_decisioni_del_sistema.png)
+
+Sono le **decisioni** del controllore MPC. La linea orizzontale a 0 è il
+riferimento; ogni curva ha segno:
+
+| Linea | Sopra lo zero (+) | Sotto lo zero (−) |
+|---|---|---|
+| **Blu – Rete** | importazione (max 12 MW) | esportazione (max 10 MW) |
+| **Verde – Batteria** | scarica | carica |
+| **Rossa – Idrogeno** | fuel cell (H₂ → energia) | elettrolizzatore (energia → H₂) |
+
+La somma di tutti i contributi più le rinnovabili chiude esattamente il
+**bilancio di potenza** ogni ora (errore ~1e-16 MW). In pratica domina il
+**blu positivo**: il sistema vive quasi sempre di import perché le rinnovabili
+non bastano. Batteria e idrogeno danno contributi piccoli e sporadici, per
+sfruttare i prezzi orari.
+
+### 3. Livello degli accumuli
+
+![Livello degli accumuli](grafici/03_livello_accumuli.png)
+
+Stato di carica in % (nel `project16_plots.png` è in p.u. 0–1):
+
+| Linea | Significato |
+|---|---|
+| **Blu – SoC batteria** | stato di carica della batteria (1 MWh). |
+| **Arancione – SoH idrogeno** | livello del serbatoio H₂ (20 MWh). |
+| **Linee tratteggiate/punteggiate** | limiti **10% e 90%** imposti alla batteria (obiettivo c). |
+
+La SoC **rimbalza di continuo tra 10% e 90%**: la batteria è piccola, si
+riempie/svuota in un'ora ed è usata come cuscinetto ai limiti, senza mai
+uscire dalla fascia ammessa → vincolo sempre rispettato. La SoH parte da 50%,
+viene consumata nei primi giorni e poi resta **a zero**: con rendimenti bassi
+(η 0.73 / 0.65) e potenza minima 1 MW, l'idrogeno conviene poco e resta
+inutilizzato.
+
+### 4. Costo netto cumulativo di mercato
+
+![Costo cumulativo](grafici/04_costo_cumulativo.png)
+
+Somma progressiva di (costo import − ricavo export) ora per ora.
+
+- **Settimana**: da 0 a **~352 600 EUR** in 168 h, quasi lineare con qualche
+  gradino nelle ore care.
+- **Anno**: sale a **~9,68 milioni EUR**, curva quasi retta con lieve
+  accelerazione finale (inverno → carico e prezzi più alti). Sempre crescente:
+  il sistema è nel complesso un compratore netto di energia.
+
+### Simulazione sull'intero anno e confronto tra scenari
+
+![Scenario baseline sull'anno](grafici/05_scenario_anno_baseline.png)
+
+Le cartelle `esperimenti_anno_highs/` e `esperimenti_anno(gurobi)/` contengono
+gli stessi quattro pannelli su **6529 ore** (un anno) in quattro scenari, con
+due solver (HiGHS open-source e Gurobi commerciale):
+
+| Scenario | SoC / SoH iniziali | Variante | Costo finale (HiGHS) |
+|---|---|---|---|
+| **A_baseline** | 0.50 / 0.50 | — | 9 676 296 € |
+| **B_vuoto** | 0.10 / 0.00 | accumuli scarichi | 9 680 059 € |
+| **C_pieno** | 0.90 / 1.00 | accumuli pieni | 9 672 533 € |
+| **D_penalita_bassa** | 0.90 / 1.00 | penale curtailment λ = 0.01 | 9 672 511 € |
+
+Risultati (`confronto_curtailment.csv`):
+
+- **Curtailment = 0** in tutti e quattro gli scenari, tutto l'anno, con
+  entrambi i solver — anche in D, dove la penale è quasi azzerata: su base
+  annuale batteria + idrogeno + export bastano sempre ad assorbire la
+  rinnovabile.
+- Le condizioni iniziali contano pochissimo: tra il migliore (C) e il peggiore
+  (B) ci sono **~7 500 € su 9,7 M€, meno dello 0,1%**.
+- **HiGHS e Gurobi danno risultati quasi identici** → non serve un solver a
+  pagamento.
+- Nel pannello 3, sull'anno, la SoC appare come una fascia blu fitta di
+  striature verticali: la batteria cicla tra 10% e 90% migliaia di volte.
+
+L'unico caso di curtailment reale si osserva nel test sintetico
+`ultimo_test.py` (rinnovabile 15 MW costante, carico 2 MW, accumuli pieni): lì
+il modello spreca esattamente 15 − 2 − 10 = **3 MW**, il valore atteso,
+confermando che la formulazione è corretta.
 
 ## Risoluzione problemi
 
