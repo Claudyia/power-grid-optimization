@@ -1,8 +1,5 @@
 # Discorso per la presentazione — Project 16
 
-Testo pensato per essere letto ad alta voce, slide per slide. È lo stesso testo già inserito come **note del relatore** nel file `Project16_Presentazione.pptx` (visibili in modalità "Presentatore" di PowerPoint/Keynote/Google Slides).
-
-Durata indicativa complessiva: **9-11 minuti**.
 
 ---
 
@@ -70,16 +67,24 @@ Per capire davvero come si comporta il sistema, non mi sono fermato a una singol
 
 Questo è il risultato di uno di questi esperimenti, lo scenario di base risolto con Gurobi. Il grafico ha quattro pannelli: in alto la produzione rinnovabile confrontata con il carico e con il curtailment, che resta praticamente sempre a zero; poi gli scambi controllati con rete, batteria e idrogeno; poi il livello degli accumuli, che si mantiene sempre dentro i limiti imposti; e infine il costo cumulativo di mercato, che cresce in modo quasi lineare durante l'anno.
 
-### Slide 17 — Confronto numerico
+### Slide 17 — Cosa fa davvero il sistema
 
-Mettendo a confronto tutti gli otto risultati emergono due cose interessanti. Primo: il costo cambia pochissimo tra i quattro scenari, meno dello 0,1 per cento, segno che le condizioni iniziali di batteria e idrogeno contano poco su un anno intero. Secondo: la differenza tra Gurobi e HiGHS è minima, meno dello 0,01 per cento: per questo modello il solver gratuito HiGHS è più che sufficiente, senza bisogno di una licenza commerciale.
+I grafici, oltre a dirci che i vincoli sono rispettati, raccontano come si comporta il sistema, e ci sono tre cose che vale la pena far notare. La prima: l'impianto compra quasi sempre energia dalla rete. Nel pannello degli scambi domina l'importazione, perché la produzione rinnovabile da sola non basta quasi mai a coprire il carico, e infatti il costo cumulativo cresce sempre: l'impianto è nel complesso un compratore netto di energia. La seconda: la batteria lavora quasi sempre attaccata a uno dei due limiti, il 10 o il 90 per cento, e salta di continuo da un estremo all'altro. È troppo piccola, un solo megawattora contro flussi da diversi megawatt, per spostare davvero energia da un'ora costosa a una economica: di fatto serve solo da cuscinetto per chiudere il bilancio orario. La terza, la più curiosa: il sistema a idrogeno si svuota nei primi giorni e poi resta fermo a zero per tutto il resto dell'anno. Con rendimenti del 73 e del 65 per cento e una potenza minima di un megawatt, in questo scenario di prezzi non conviene mai metterlo in funzione.
 
-### Slide 18 — Una scoperta inattesa
+### Slide 18 — Gli accumuli, più da vicino
 
-C'è un risultato che non mi aspettavo. Nello scenario D avevo abbassato la penalità sul curtailment quasi a zero, aspettandomi che il sistema sprecasse più energia rinnovabile. Invece il curtailment è rimasto a zero anche in questo caso, per tutto l'anno. Il motivo è che, su base annuale, la combinazione di batteria, idrogeno ed export in rete offre sempre abbastanza spazio per assorbire la produzione rinnovabile, anche quando gli accumuli partono già pieni. Ho osservato un vero caso di curtailment solo in un test sintetico che ho costruito apposta, con accumuli pieni e una produzione rinnovabile molto più alta del carico: in quel caso il modello ha sprecato esattamente i 3 megawatt che avevo calcolato a mano, confermando che il modello si comporta correttamente.
+Questo è lo zoom sulla prima settimana del livello dei due accumuli. La linea della batteria, in blu, rimbalza di continuo tra il 10 e il 90 per cento: non esce mai dalla fascia ammessa, quindi il vincolo è sempre rispettato, ma si vede che viene usata al massimo delle sue possibilità, che però sono poche. La linea dell'idrogeno, in arancione, parte dal 50 per cento, viene consumata nei primi giorni e poi resta incollata a zero. Questo spiega anche perché le condizioni iniziali contano così poco: qualunque sia il punto di partenza, dopo poche ore la batteria è tornata ai suoi limiti e l'idrogeno si è svuotato, e il sistema di fatto dimentica da dove è partito.
 
-### Slide 19 — Conclusioni
+### Slide 19 — Confronto numerico
 
-Per concludere: il modello rispetta sempre il bilancio di potenza e tutti i vincoli tecnici di batteria e idrogeno. I risultati sono praticamente identici tra il solver commerciale e quello open source, quindi non è necessario un solver a pagamento per questo tipo di problema. E il sistema riesce sempre a evitare lo spreco di rinnovabile in tutti gli scenari annuali testati. Ci sono anche dei limiti: la penalità sul curtailment e gli stati iniziali sono scelte di modellazione mie, non specificate dalla consegna, e il caso di spreco reale l'ho osservato solo in un test sintetico. Uno sviluppo futuro interessante potrebbe essere testare condizioni meteo estreme, per capire quando il curtailment diventa davvero necessario anche su dati reali.
+Mettendo a confronto tutti gli otto risultati emergono due cose interessanti. Primo: il costo cambia pochissimo tra i quattro scenari, meno dello 0,1 per cento, segno che le condizioni iniziali di batteria e idrogeno contano poco su un anno intero, come si vedeva anche dal grafico degli accumuli. Secondo: la differenza tra Gurobi e HiGHS è minima, meno dello 0,01 per cento: per questo modello il solver gratuito HiGHS è più che sufficiente, senza bisogno di una licenza commerciale.
+
+### Slide 20 — Una scoperta inattesa
+
+C'è un risultato che non mi aspettavo. Nello scenario D avevo abbassato la penalità sul curtailment quasi a zero, aspettandomi che il sistema sprecasse più energia rinnovabile. Invece il curtailment è rimasto a zero anche in questo caso, per tutto l'anno. Il motivo è soprattutto l'export verso la rete: visto che l'idrogeno resta fermo e la batteria è minuscola, è la vendita in rete a fare da valvola di sfogo per gli eccessi di rinnovabile, e con il limite di 10 megawatt in esportazione lo spazio è sempre sufficiente, anche quando gli accumuli partono già pieni. Ho osservato un vero caso di curtailment solo in un test sintetico che ho costruito apposta, con accumuli pieni e una produzione rinnovabile molto più alta del carico: in quel caso il modello ha sprecato esattamente i 3 megawatt che avevo calcolato a mano, confermando che il modello si comporta correttamente.
+
+### Slide 21 — Conclusioni
+
+Per concludere: il modello rispetta sempre il bilancio di potenza e tutti i vincoli tecnici di batteria e idrogeno. I risultati sono praticamente identici tra il solver commerciale e quello open source, quindi non è necessario un solver a pagamento per questo tipo di problema. E il sistema riesce sempre a evitare lo spreco di rinnovabile in tutti gli scenari annuali testati, appoggiandosi soprattutto alla rete: l'impianto è di fatto un compratore netto di energia, la batteria fa solo da cuscinetto e il sistema a idrogeno, con questi prezzi, resta quasi sempre fermo. Ci sono anche dei limiti: la penalità sul curtailment e gli stati iniziali sono scelte di modellazione mie, non specificate dalla consegna, e il caso di spreco reale l'ho osservato solo in un test sintetico. Uno sviluppo futuro interessante potrebbe essere testare condizioni meteo estreme, per capire quando il curtailment diventa davvero necessario anche su dati reali.
 
 

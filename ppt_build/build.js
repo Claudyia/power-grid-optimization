@@ -41,10 +41,12 @@ const NOTES = {
   14: "Dal punto di vista del codice, tutto parte dalla funzione main, che mette in fila i vari passi: legge gli argomenti da riga di comando, carica i dati con load_project_data, sceglie un solver disponibile con select_solver, esegue la simulazione ora per ora con run_mpc_simulation, che a sua volta chiama solve_mpc_step per ogni singola ora, e infine salva i risultati in un file CSV e crea un grafico riassuntivo. Ho anche creato una seconda versione dello script, es.py, identica in tutto tranne che per il valore della penalità sul curtailment.",
   15: "Per capire davvero come si comporta il sistema, non mi sono fermato a una singola simulazione. Ho ripetuto la simulazione sull'intero anno, quindi più di 6500 ore, in quattro scenari diversi: uno di base con gli accumuli a metà carica, uno con gli accumuli completamente vuoti, uno con gli accumuli completamente pieni, e uno identico al terzo ma con la penalità sul curtailment abbassata quasi a zero. Ho ripetuto ognuno di questi quattro scenari sia con il solver Gurobi che con il solver open source HiGHS, per un totale di otto simulazioni complete sull'anno.",
   16: "Questo è il risultato di uno di questi esperimenti, lo scenario di base risolto con Gurobi. Il grafico ha quattro pannelli: in alto la produzione rinnovabile confrontata con il carico e con il curtailment, che resta praticamente sempre a zero; poi gli scambi controllati con rete, batteria e idrogeno; poi il livello degli accumuli, che si mantiene sempre dentro i limiti imposti; e infine il costo cumulativo di mercato, che cresce in modo quasi lineare durante l'anno.",
-  17: "Mettendo a confronto tutti gli otto risultati emergono due cose interessanti. Primo: il costo cambia pochissimo tra i quattro scenari, meno dello 0,1 per cento, segno che le condizioni iniziali di batteria e idrogeno contano poco su un anno intero. Secondo: la differenza tra Gurobi e HiGHS è minima, meno dello 0,01 per cento: per questo modello il solver gratuito HiGHS è più che sufficiente, senza bisogno di una licenza commerciale.",
-  18: "C'è un risultato che non mi aspettavo. Nello scenario D avevo abbassato la penalità sul curtailment quasi a zero, aspettandomi che il sistema sprecasse più energia rinnovabile. Invece il curtailment è rimasto a zero anche in questo caso, per tutto l'anno. Il motivo è che, su base annuale, la combinazione di batteria, idrogeno ed export in rete offre sempre abbastanza spazio per assorbire la produzione rinnovabile, anche quando gli accumuli partono già pieni. Ho osservato un vero caso di curtailment solo in un test sintetico che ho costruito apposta, con accumuli pieni e una produzione rinnovabile molto più alta del carico: in quel caso il modello ha sprecato esattamente i 3 megawatt che avevo calcolato a mano, confermando che il modello si comporta correttamente.",
-  19: "Per concludere: il modello rispetta sempre il bilancio di potenza e tutti i vincoli tecnici di batteria e idrogeno. I risultati sono praticamente identici tra il solver commerciale e quello open source, quindi non è necessario un solver a pagamento per questo tipo di problema. E il sistema riesce sempre a evitare lo spreco di rinnovabile in tutti gli scenari annuali testati. Ci sono anche dei limiti: la penalità sul curtailment e gli stati iniziali sono scelte di modellazione mie, non specificate dalla consegna, e il caso di spreco reale l'ho osservato solo in un test sintetico. Uno sviluppo futuro interessante potrebbe essere testare condizioni meteo estreme, per capire quando il curtailment diventa davvero necessario anche su dati reali.",
-  20: "Vi ringrazio per l'attenzione. Sono a disposizione per qualsiasi domanda sul modello, sul codice o sui risultati.",
+  17: "I grafici, oltre a dirci che i vincoli sono rispettati, raccontano come si comporta il sistema, e ci sono tre cose che vale la pena far notare. La prima: l'impianto compra quasi sempre energia dalla rete. Nel pannello degli scambi domina l'importazione, perché la produzione rinnovabile da sola non basta quasi mai a coprire il carico, e infatti il costo cumulativo cresce sempre: l'impianto è nel complesso un compratore netto di energia. La seconda: la batteria lavora quasi sempre attaccata a uno dei due limiti, il 10 o il 90 per cento, e salta di continuo da un estremo all'altro. È troppo piccola, un solo megawattora contro flussi da diversi megawatt, per spostare davvero energia da un'ora costosa a una economica: di fatto serve solo da cuscinetto per chiudere il bilancio orario. La terza, la più curiosa: il sistema a idrogeno si svuota nei primi giorni e poi resta fermo a zero per tutto il resto dell'anno. Con rendimenti del 73 e del 65 per cento e una potenza minima di un megawatt, in questo scenario di prezzi non conviene mai metterlo in funzione.",
+  18: "Questo è lo zoom sulla prima settimana del livello dei due accumuli. La linea della batteria, in blu, rimbalza di continuo tra il 10 e il 90 per cento: non esce mai dalla fascia ammessa, quindi il vincolo è sempre rispettato, ma si vede che viene usata al massimo delle sue possibilità, che però sono poche. La linea dell'idrogeno, in arancione, parte dal 50 per cento, viene consumata nei primi giorni e poi resta incollata a zero. Questo spiega anche perché le condizioni iniziali contano così poco: qualunque sia il punto di partenza, dopo poche ore la batteria è tornata ai suoi limiti e l'idrogeno si è svuotato, e il sistema di fatto dimentica da dove è partito.",
+  19: "Mettendo a confronto tutti gli otto risultati emergono due cose interessanti. Primo: il costo cambia pochissimo tra i quattro scenari, meno dello 0,1 per cento, segno che le condizioni iniziali di batteria e idrogeno contano poco su un anno intero, come si vedeva anche dal grafico degli accumuli. Secondo: la differenza tra Gurobi e HiGHS è minima, meno dello 0,01 per cento: per questo modello il solver gratuito HiGHS è più che sufficiente, senza bisogno di una licenza commerciale.",
+  20: "C'è un risultato che non mi aspettavo. Nello scenario D avevo abbassato la penalità sul curtailment quasi a zero, aspettandomi che il sistema sprecasse più energia rinnovabile. Invece il curtailment è rimasto a zero anche in questo caso, per tutto l'anno. Il motivo è soprattutto l'export verso la rete: visto che l'idrogeno resta fermo e la batteria è minuscola, è la vendita in rete a fare da valvola di sfogo per gli eccessi di rinnovabile, e con il limite di 10 megawatt in esportazione lo spazio è sempre sufficiente, anche quando gli accumuli partono già pieni. Ho osservato un vero caso di curtailment solo in un test sintetico che ho costruito apposta, con accumuli pieni e una produzione rinnovabile molto più alta del carico: in quel caso il modello ha sprecato esattamente i 3 megawatt che avevo calcolato a mano, confermando che il modello si comporta correttamente.",
+  21: "Per concludere: il modello rispetta sempre il bilancio di potenza e tutti i vincoli tecnici di batteria e idrogeno. I risultati sono praticamente identici tra il solver commerciale e quello open source, quindi non è necessario un solver a pagamento per questo tipo di problema. E il sistema riesce sempre a evitare lo spreco di rinnovabile in tutti gli scenari annuali testati, appoggiandosi soprattutto alla rete: l'impianto è di fatto un compratore netto di energia, la batteria fa solo da cuscinetto e il sistema a idrogeno, con questi prezzi, resta quasi sempre fermo. Ci sono anche dei limiti: la penalità sul curtailment e gli stati iniziali sono scelte di modellazione mie, non specificate dalla consegna, e il caso di spreco reale l'ho osservato solo in un test sintetico. Uno sviluppo futuro interessante potrebbe essere testare condizioni meteo estreme, per capire quando il curtailment diventa davvero necessario anche su dati reali.",
+  22: "Vi ringrazio per l'attenzione. Sono a disposizione per qualsiasi domanda sul modello, sul codice o sui risultati.",
 };
 
 function footer(slide, label) {
@@ -816,7 +818,7 @@ function card(slide, x, y, w, h, opts) {
   s.background = { color: WHITE };
   contentHeader(s, "06 · Esperimenti e risultati", "Un esperimento, visto ora per ora", { titleH: 0.7, titleSize: 26 });
 
-  const imgPath = "/Users/claudia/Desktop/Innovazione/power-grid-optimization/esperimenti_anno(gurobi)/expA_baseline/project16_plots.png";
+  const imgPath = "../esperimenti_anno(gurobi)/expA_baseline/project16_plots.png";
   const imgW = 3.6;
   const imgH = imgW * (2560 / 2240);
   s.addImage({
@@ -859,7 +861,88 @@ function card(slide, x, y, w, h, opts) {
 }
 
 // ---------------------------------------------------------------------------
-// Slide 17 — Risultati: confronto numerico (chart nativo)
+// Slide 17 — Cosa fa davvero il sistema
+// ---------------------------------------------------------------------------
+{
+  const s = pres.addSlide();
+  s.background = { color: WHITE };
+  contentHeader(s, "06 · Esperimenti e risultati", "Cosa fa davvero il sistema", { titleSize: 30 });
+
+  const rows = [
+    [TEAL, "Vive di rete", "L'importazione domina ogni ora: le rinnovabili da sole non bastano quasi mai a coprire il carico. Il costo cumulativo cresce sempre — l'impianto è un compratore netto di energia."],
+    [NAVY, "Batteria = cuscinetto", "La carica sbatte di continuo tra 10% e 90%. Con 1 MWh contro flussi da più MW non può fare arbitraggio sui prezzi: serve solo a chiudere il bilancio orario."],
+    ["8A5CBF", "Idrogeno spento", "Il serbatoio si svuota nei primi giorni e resta a 0 per tutto l'anno. Rese 73% / 65% e potenza minima 1 MW: con questi prezzi non conviene mai accenderlo."],
+  ];
+  let ry = 2.1;
+  const rh = 1.35;
+  rows.forEach(([c, title, body]) => {
+    card(s, MARGIN, ry, W - 2 * MARGIN, rh, { shadow: false });
+    s.addShape(pres.ShapeType.roundRect, {
+      x: MARGIN, y: ry, w: 0.14, h: rh, fill: { color: c }, line: { type: "none" }, shadow: undefined,
+    });
+    s.addText(title, {
+      x: MARGIN + 0.4, y: ry + 0.16, w: W - 2 * MARGIN - 0.8, h: 0.4,
+      fontFace: FONT_BODY, fontSize: 16, color: NAVY, bold: true, margin: 0,
+    });
+    s.addText(body, {
+      x: MARGIN + 0.4, y: ry + 0.58, w: W - 2 * MARGIN - 0.8, h: rh - 0.68,
+      fontFace: FONT_BODY, fontSize: 12.5, color: INK, margin: 0, lineSpacingMultiple: 1.18,
+    });
+    ry += rh + 0.18;
+  });
+  s.addNotes(NOTES[17]);
+  footer(s);
+}
+
+// ---------------------------------------------------------------------------
+// Slide 18 — Gli accumuli, più da vicino
+// ---------------------------------------------------------------------------
+{
+  const s = pres.addSlide();
+  s.background = { color: WHITE };
+  contentHeader(s, "06 · Esperimenti e risultati", "Gli accumuli, più da vicino", { titleSize: 30 });
+
+  const imgW = 6.6;
+  const imgH = imgW * (917 / 2319);
+  s.addImage({
+    path: "../grafici/03_livello_accumuli.png",
+    x: MARGIN, y: 2.2, w: imgW, h: imgH,
+    shadow: { type: "outer", color: "9AA7AF", opacity: 0.3, blur: 6, offset: 2, angle: 90 },
+  });
+  s.addText("Livello di batteria e idrogeno — zoom sulla prima settimana", {
+    x: MARGIN, y: 2.2 + imgH + 0.12, w: imgW, h: 0.35,
+    fontFace: FONT_BODY, fontSize: 10, color: MUTED, italic: true, margin: 0,
+  });
+
+  const nx = MARGIN + imgW + 0.5;
+  const nw = W - MARGIN - nx;
+  const items = [
+    [NAVY, "Batteria sempre ai limiti", "La SoC resta tra 10% e 90% — vincolo rispettato — ma sbatte da un estremo all'altro: è sfruttata al massimo, e il massimo è poco."],
+    [GOLD, "Idrogeno spento dopo pochi giorni", "La SoH parte dal 50%, si consuma subito e resta a zero. Ecco perché le condizioni iniziali quasi non cambiano i risultati."],
+  ];
+  let ny = 2.2;
+  const nh = 2.15;
+  items.forEach(([c, t, b]) => {
+    card(s, nx, ny, nw, nh, { shadow: false });
+    s.addShape(pres.ShapeType.roundRect, {
+      x: nx, y: ny, w: 0.14, h: nh, fill: { color: c }, line: { type: "none" }, shadow: undefined,
+    });
+    s.addText(t, {
+      x: nx + 0.35, y: ny + 0.2, w: nw - 0.6, h: 0.7,
+      fontFace: FONT_BODY, fontSize: 13.5, color: NAVY, bold: true, margin: 0, lineSpacingMultiple: 1.1,
+    });
+    s.addText(b, {
+      x: nx + 0.35, y: ny + 0.92, w: nw - 0.6, h: nh - 1.05,
+      fontFace: FONT_BODY, fontSize: 11.5, color: INK, margin: 0, lineSpacingMultiple: 1.18,
+    });
+    ny += nh + 0.25;
+  });
+  s.addNotes(NOTES[18]);
+  footer(s);
+}
+
+// ---------------------------------------------------------------------------
+// Slide 19 — Risultati: confronto numerico (chart nativo)
 // ---------------------------------------------------------------------------
 {
   const s = pres.addSlide();
@@ -916,12 +999,12 @@ function card(slide, x, y, w, h, opts) {
     x: statX + 0.25, y: 5.05, w: statW - 0.5, h: 0.7,
     fontFace: FONT_BODY, fontSize: 12, color: "CADCE8", align: "center", margin: 0, lineSpacingMultiple: 1.15,
   });
-  s.addNotes(NOTES[17]);
+  s.addNotes(NOTES[19]);
   footer(s);
 }
 
 // ---------------------------------------------------------------------------
-// Slide 18 — Scoperta interessante
+// Slide 20 — Scoperta interessante
 // ---------------------------------------------------------------------------
 {
   const s = pres.addSlide();
@@ -951,12 +1034,12 @@ function card(slide, x, y, w, h, opts) {
     x: cx - cyw / 2 + 0.2, y: 3.65, w: cyw - 0.4, h: 1.6,
     fontFace: FONT_BODY, fontSize: 12, color: NAVY_DARK, align: "center", margin: 0, lineSpacingMultiple: 1.2,
   });
-  s.addNotes(NOTES[18]);
+  s.addNotes(NOTES[20]);
   footer(s);
 }
 
 // ---------------------------------------------------------------------------
-// Slide 19 — Conclusioni
+// Slide 21 — Conclusioni
 // ---------------------------------------------------------------------------
 {
   const s = pres.addSlide();
@@ -994,12 +1077,12 @@ function card(slide, x, y, w, h, opts) {
       }
     );
   });
-  s.addNotes(NOTES[19]);
+  s.addNotes(NOTES[21]);
   footer(s);
 }
 
 // ---------------------------------------------------------------------------
-// Slide 20 — Grazie / Domande
+// Slide 22 — Grazie / Domande
 // ---------------------------------------------------------------------------
 {
   const s = pres.addSlide();
@@ -1021,7 +1104,7 @@ function card(slide, x, y, w, h, opts) {
     x: MARGIN, y: 6.4, w: 10.5, h: 0.7,
     fontFace: FONT_BODY, fontSize: 12, color: TEAL_LIGHT, margin: 0, lineSpacingMultiple: 1.2,
   });
-  s.addNotes(NOTES[20]);
+  s.addNotes(NOTES[22]);
 }
 
 pres.writeFile({ fileName: "Project16_Presentazione.pptx" }).then((fileName) => {
